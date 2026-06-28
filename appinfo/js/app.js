@@ -12,6 +12,7 @@
 	var firstUrl = null;
 	var logsVisible = false;
 	var wasRunning = false;
+	var autostartOn = true;
 
 	function msg(text) {
 		$('msg').innerHTML = text || '';
@@ -78,7 +79,9 @@
 		$('arch').textContent = s.arch || '—';
 		$('datadir').textContent = s.dataDir || '—';
 		// Autostart status
-		$('autostart').textContent = s.autostart ? 'Enabled' : 'Disabled';
+		autostartOn = !!s.autostart;
+		$('autostart').textContent = autostartOn ? 'Enabled' : 'Disabled';
+		$('btnAutostart').textContent = 'Autostart: ' + (autostartOn ? 'On' : 'Off');
 		var urls = s.accessUrls || [];
 		firstUrl = urls.length ? urls[0] : null;
 		$('urls').textContent = urls.length ? urls.join('    ') : 'http://<tv-ip>:' + (s.port || 9696);
@@ -134,6 +137,15 @@
 		$('btnUpdate').onclick = function () {
 			msg('Updating to the latest Prowlarr release…');
 			svc('update', {}, poll);
+		};
+		$('btnAutostart').onclick = function () {
+			if (autostartOn) {
+				msg('Disabling autostart…');
+				svc('disableAutostart', {}, poll);
+			} else {
+				msg('Enabling autostart…');
+				svc('enableAutostart', {}, poll);
+			}
 		};
 		$('btnLogs').onclick = toggleLogs;
 		$('btnOpen').onclick = function () {

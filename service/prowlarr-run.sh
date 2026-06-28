@@ -15,6 +15,8 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" 2>/dev/null && pwd)
 PORT=9696
 API_URL="https://api.github.com/repos/Prowlarr/Prowlarr/releases/latest"
 UA="prowlarr-webos"
+AUTOSTART_SRC="$SCRIPT_DIR/prowlarr-autostart"
+AUTOSTART_DST="/var/lib/webosbrew/init.d/prowlarr"
 
 # --------------------------------------------------------------------------
 # Pick a data directory that is both writable and allows execution.
@@ -55,6 +57,21 @@ ARCHFILE="$DATA_DIR/arch"
 mkdir -p "$DATA_DIR" "$DATA_SUB" "$DATA_DIR/tmp" 2>/dev/null
 
 set_state() { echo "$1" >"$STATEFILE" 2>/dev/null; }
+
+autostart_enabled() { [ -f "$AUTOSTART_DST" ]; }
+
+enable_autostart() {
+    mkdir -p "$(dirname "$AUTOSTART_DST")" 2>/dev/null
+    if [ -f "$AUTOSTART_SRC" ]; then
+        cp "$AUTOSTART_SRC" "$AUTOSTART_DST" 2>/dev/null && chmod +x "$AUTOSTART_DST" 2>/dev/null
+    fi
+    autostart_enabled
+}
+
+disable_autostart() {
+    rm -f "$AUTOSTART_DST" 2>/dev/null
+    ! autostart_enabled
+}
 
 # Launch a long-running subcommand in its OWN session so it survives webOS
 # tearing down the (short-lived) JS service after the Luna call returns.
@@ -240,6 +257,16 @@ do_stop() {
         rm -f "$PIDFILE"
     fi
     if command -v pkill >/dev/null 2>&1; then pkill -f "$BIN" 2>/dev/null; fi
+    # Wait until the binary is fully gone so the port (9696) is released before
+    # any subsequent start, otherwise restart hits "address already in use".
+    i=0
+    while is_running; do
+        pkill -9 -f "$BIN" 2>/dev/null
+        i=$((i + 1)); [ "$i" -ge 10 ] && break
+        sleep 1
+    done
+    # Brief grace period for the TCP socket to flush out of TIME_WAIT.
+    sleep 1
     set_state "stopped"
     return 0
 }
@@ -259,8 +286,9 @@ do_status() {
     if [ -f "$TOTALFILE" ]; then tot=$(cat "$TOTALFILE" 2>/dev/null | tr -d ' '); fi
     [ -z "$tot" ] && tot=0
 
-    printf '{"running":%s,"installed":%s,"state":"%s","version":"%s","arch":"%s","port":%s,"downloadedBytes":%s,"totalBytes":%s,"dataDir":"%s"}\n' \
-        "$r" "$ins" "$st" "$ver" "$arch" "$PORT" "$dlb" "$tot" "$DATA_DIR"
+    if autostart_enabled; then as=true; else as=false; fi
+    printf '{"running":%s,"installed":%s,"state":"%s","version":"%s","arch":"%s","port":%s,"downloadedBytes":%s,"totalBytes":%s,"dataDir":"%s","autostart":%s}\n' \
+        "$r" "$ins" "$st" "$ver" "$arch" "$PORT" "$dlb" "$tot" "$DATA_DIR" "$as"
 }
 
 case "${1:-}" in
@@ -272,10 +300,12 @@ case "${1:-}" in
     status)   do_status ;;
     logs)     tail -n "${2:-200}" "$LOG" 2>/dev/null ;;
     datadir)  echo "$DATA_DIR" ;;
+    enable-autostart)  enable_autostart && echo "enabled" || echo "failed" ;;
+    disable-autostart) disable_autostart && echo "disabled" || echo "failed" ;;
     _start)   do_start ;;
     _install) do_install ;;
     _update)  do_stop; do_install && do_start ;;
-    *) echo "usage: $0 {install|start|stop|restart|update|status|logs|datadir}"; exit 1 ;;
+    *) echo "usage: $0 {install|start|stop|restart|update|status|logs|datadir|enable-autostart|disable-autostart}"; exit 1 ;;
 esac
 
 

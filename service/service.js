@@ -130,6 +130,18 @@ service.register('autostart', function (message) {
 	message.respond({ returnValue: true, started: true });
 });
 
+service.register('enableAutostart', function (message) {
+	runScript(['enable-autostart'], 15000, function () {
+		message.respond({ returnValue: true, autostart: true });
+	});
+});
+
+service.register('disableAutostart', function (message) {
+	runScript(['disable-autostart'], 15000, function () {
+		message.respond({ returnValue: true, autostart: false });
+	});
+});
+
 // Keep the service resident. webOS shuts a JS service down as soon as it holds
 // no active "activity" - the launcher logs "no active activities, exiting" and
 // the process can die before (or between) Luna calls are delivered. Holding one
