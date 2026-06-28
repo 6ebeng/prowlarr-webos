@@ -210,10 +210,19 @@ do_start() {
     TMPDIR="$DATA_DIR/tmp" HOME="$DATA_DIR" XDG_CONFIG_HOME="$DATA_DIR" \
         nohup env LD_LIBRARY_PATH="$APP_DIR/usr/lib:$APP_DIR" "$APP_DIR/ld-musl.so" "$BIN" -nobrowser -data="$DATA_SUB" >>"$LOG" 2>&1 &
     
-    # Wait for the program to bind
-    sleep 3
-    if is_running; then set_state "running"; else set_state "error:launch"; return 1; fi
-    return 0
+    # Wait for the program to bind (can take a few seconds on slow TVs)
+    i=0
+    while [ $i -lt 15 ]; do
+        sleep 1
+        if is_running; then
+            set_state "running"
+            return 0
+        fi
+        i=$((i + 1))
+    done
+    
+    set_state "error:launch"
+    return 1
 }
 
 do_stop() {
