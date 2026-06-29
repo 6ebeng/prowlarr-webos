@@ -145,7 +145,7 @@ scripts/                make-icons / build / deploy / setup-device (PowerShell)
 
 ---
 
-Made by **Tishko Rasoul** — [github.com/6ebeng/prowlarr-webos](https://github.com/6ebeng/prowlarr-webos)
+Coded by **Tishko Rasoul** — [github.com/6ebeng/prowlarr-webos](https://github.com/6ebeng/prowlarr-webos)
 
 
 
