@@ -3,6 +3,7 @@
 
 	var SERVICE = 'com.prowlarr.app.service';
 	var POLL_MS = 2000;
+	var LOG_LINES = 300;
 
 	function $(id) {
 		return document.getElementById(id);
@@ -95,8 +96,22 @@
 		}
 	}
 
+	// Refresh the live log view while polling, preserving the user's scroll
+	// position unless they are already pinned to the bottom (tail-follow).
+	function refreshLogsLive() {
+		var w = $('logwrap');
+		var atBottom = w.scrollHeight - w.clientHeight <= w.scrollTop + 20;
+		svc('getLogs', { lines: LOG_LINES }, function (r) {
+			$('logs').textContent = r.log;
+			if (atBottom || w.scrollTop === 0) w.scrollTop = w.scrollHeight;
+		});
+	}
+
 	function poll() {
-		svc('status', {}, function(s) { render(s); if (logsVisible) { var w = document.getElementById('logwrap'); var lock = w.scrollHeight - w.clientHeight <= w.scrollTop + 20; svc('getLogs', {lines: 300}, function(r) { document.getElementById('logs').textContent = r.log; if(lock || w.scrollTop === 0) w.scrollTop = w.scrollHeight; }); } }, function () {});
+		svc('status', {}, function (s) {
+			render(s);
+			if (logsVisible) refreshLogsLive();
+		}, function () {});
 	}
 
 	function startPolling() {
@@ -122,7 +137,7 @@
 		$('logwrap').className = 'card' + (logsVisible ? '' : ' hidden');
 		if (logsVisible) {
 			$('logs').textContent = 'Loading…';
-			svc('getLogs', { lines: 300 }, function (r) {
+			svc('getLogs', { lines: LOG_LINES }, function (r) {
 				$('logs').textContent = r && r.log ? r.log : '(log is empty)';
 			});
 		}

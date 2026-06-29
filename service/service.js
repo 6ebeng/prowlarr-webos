@@ -100,25 +100,21 @@ service.register('status', function (message) {
 	});
 });
 
-service.register('start', function (message) {
-	runDetached(['start']);
-	message.respond({ returnValue: true, started: true });
-});
+// Fire-and-forget actions: launch the detached script run and acknowledge at
+// once. The front-end follows progress by polling "status".
+function registerDetached(method, scriptArg, ackKey) {
+	service.register(method, function (message) {
+		runDetached([scriptArg]);
+		var res = { returnValue: true };
+		res[ackKey] = true;
+		message.respond(res);
+	});
+}
 
-service.register('install', function (message) {
-	runDetached(['install']);
-	message.respond({ returnValue: true, installing: true });
-});
-
-service.register('update', function (message) {
-	runDetached(['update']);
-	message.respond({ returnValue: true, updating: true });
-});
-
-service.register('restart', function (message) {
-	runDetached(['restart']);
-	message.respond({ returnValue: true, restarting: true });
-});
+registerDetached('start', 'start', 'started');
+registerDetached('install', 'install', 'installing');
+registerDetached('update', 'update', 'updating');
+registerDetached('restart', 'restart', 'restarting');
 
 service.register('stop', function (message) {
 	runScript(['stop'], 30000, function () {
@@ -145,10 +141,7 @@ service.register('checkUpdate', function (message) {
 });
 
 // Called by the autostart hook (luna://.../autostart) at boot.
-service.register('autostart', function (message) {
-	runDetached(['start']);
-	message.respond({ returnValue: true, started: true });
-});
+registerDetached('autostart', 'start', 'started');
 
 service.register('enableAutostart', function (message) {
 	runScript(['enable-autostart'], 15000, function () {

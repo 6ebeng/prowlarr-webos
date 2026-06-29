@@ -28,12 +28,19 @@ pick_datadir() {
         if mkdir -p "$PROWLARR_DATA" 2>/dev/null; then echo "$PROWLARR_DATA"; return 0; fi
     fi
     for d in /media/developer/prowlarr /home/root/prowlarr /media/internal/.prowlarr /tmp/prowlarr; do
+        # Fast path: a dir validated on an earlier run keeps an .exec_ok marker.
+        # Exec-capability is a static mount property, so while the marker (and the
+        # dir) still exist and the dir is writable we skip the write/chmod/exec
+        # probe entirely. Without this every status poll (every 2s) would create,
+        # chmod and run a probe file - needless disk churn on the TV.
+        if [ -f "$d/.exec_ok" ] && [ -w "$d" ]; then echo "$d"; return 0; fi
         mkdir -p "$d" 2>/dev/null || continue
         if ( echo x >"$d/.w" ) 2>/dev/null; then
             printf '#!/bin/sh\nexit 0\n' >"$d/.x" 2>/dev/null
             chmod +x "$d/.x" 2>/dev/null
             if "$d/.x" 2>/dev/null; then
                 rm -f "$d/.w" "$d/.x" 2>/dev/null
+                : >"$d/.exec_ok" 2>/dev/null
                 echo "$d"; return 0
             fi
         fi
@@ -120,6 +127,17 @@ download() {
     return 1
 }
 
+# fetch_apk <url> <file>: download an Alpine .apk (a gzip tarball) via download()
+# and extract it into the current directory. Returns non-zero on any failure so
+# the caller can stop with a clear error state instead of half-installing.
+fetch_apk() {
+    _url="$1"; _f="$2"
+    download "$_url" "$_f" || return 1
+    tar -xzf "$_f" 2>/dev/null || return 1
+    rm -f "$_f" 2>/dev/null
+    return 0
+}
+
 # Fetch the latest release tag from GitHub and cache it. Returns the cached
 # value immediately if checked within the last hour, so polling stays cheap.
 do_latest() {
@@ -186,7 +204,8 @@ do_install() {
     rm -f "$PART" "$TOTALFILE" 2>/dev/null
     if ! download "$API_URL" "$json"; then set_state "error:api"; return 1; fi
 
-    # Switch to the arm64 build since the TV has an aarch64 kernel.
+    # webOS runs a 32-bit ARM (armhf) userspace even on aarch64 kernels, so we
+    # use the musl 32-bit ARM build and ship the matching Alpine libs below.
     url=$(grep -o '"https://[^"]*linux-musl-core-arm.tar.gz"' "$json" | head -n1 | tr -d '"')
     ver=$(grep -o '"tag_name"[ ]*:[ ]*"[^"]*"' "$json" | head -n1 | sed 's/.*"\([^"]*\)"$/\1/')
     if [ -z "$url" ]; then set_state "error:asset"; return 1; fi
@@ -216,22 +235,25 @@ do_install() {
     fi
     rm -rf "$APP_DIR.tmp" "$TGZ"
     
-    # Fetch Alpine musl standard libraries (since .NET references them) and the loader
+    # Fetch the Alpine musl runtime libraries the self-contained .NET build links
+    # against, plus the musl loader. Go through download() (curl/wget/node with
+    # timeouts) and fail fast with a clear state on any error, so a flaky mirror
+    # surfaces as error:deps instead of a binary that only breaks later at launch.
     set_state "fetching-deps"
-    cd "$APP_DIR" 2>/dev/null
-    wget -q 'https://dl-cdn.alpinelinux.org/alpine/v3.20/main/armv7/musl-1.2.5-r3.apk' -O musl.apk
-    tar -xzf musl.apk && mv lib/ld-musl-armhf.so.1 ./ld-musl.so
-    wget -q 'https://dl-cdn.alpinelinux.org/alpine/v3.20/main/armv7/libstdc++-13.2.1_git20240309-r1.apk' -O libstdc.apk
-    tar -xzf libstdc.apk
-    wget -q 'https://dl-cdn.alpinelinux.org/alpine/v3.20/main/armv7/libgcc-13.2.1_git20240309-r1.apk' -O libgcc.apk
-    tar -xzf libgcc.apk
-    wget -q 'https://dl-cdn.alpinelinux.org/alpine/v3.20/main/armv7/libssl3-3.3.7-r0.apk' -O libssl.apk
-    tar -xzf libssl.apk
-    wget -q 'https://dl-cdn.alpinelinux.org/alpine/v3.20/main/armv7/libcrypto3-3.3.7-r0.apk' -O libcrypto.apk
-    tar -xzf libcrypto.apk
-    rm -f *.apk
+    cd "$APP_DIR" 2>/dev/null || { set_state "error:chdir"; return 1; }
+    ALPINE_BASE="https://dl-cdn.alpinelinux.org/alpine/v3.20/main/armv7"
+    fetch_apk "$ALPINE_BASE/musl-1.2.5-r3.apk" musl.apk || { set_state "error:deps"; return 1; }
+    if [ ! -f lib/ld-musl-armhf.so.1 ] || ! mv lib/ld-musl-armhf.so.1 ./ld-musl.so; then
+        set_state "error:deps"; return 1
+    fi
+    fetch_apk "$ALPINE_BASE/libstdc++-13.2.1_git20240309-r1.apk" libstdc.apk || { set_state "error:deps"; return 1; }
+    fetch_apk "$ALPINE_BASE/libgcc-13.2.1_git20240309-r1.apk"    libgcc.apk   || { set_state "error:deps"; return 1; }
+    fetch_apk "$ALPINE_BASE/libssl3-3.3.7-r0.apk"               libssl.apk    || { set_state "error:deps"; return 1; }
+    fetch_apk "$ALPINE_BASE/libcrypto3-3.3.7-r0.apk"            libcrypto.apk || { set_state "error:deps"; return 1; }
+    rm -f ./*.apk 2>/dev/null
 
     chmod +x "$BIN" "./ld-musl.so" 2>/dev/null
+    if [ ! -x "$BIN" ] || [ ! -e ./ld-musl.so ]; then set_state "error:binmissing"; return 1; fi
     [ -n "$ver" ] && echo "$ver" >"$VERFILE"
     echo "$arch" >"$ARCHFILE"
     set_state "stopped"
