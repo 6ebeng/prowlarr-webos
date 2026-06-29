@@ -239,10 +239,13 @@ do_start() {
     write_config
     set_state "starting"
     cd "$APP_DIR" 2>/dev/null || { set_state "error:chdir"; return 1; }
-    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
-    DOTNET_CLI_TELEMETRY_OPTOUT=1 \
-    TMPDIR="$DATA_DIR/tmp" HOME="$DATA_DIR" XDG_CONFIG_HOME="$DATA_DIR" \
-        nohup env LD_LIBRARY_PATH="$APP_DIR/usr/lib:$APP_DIR" "$APP_DIR/ld-musl.so" "$BIN" -nobrowser -data="$DATA_SUB" >>"$LOG" 2>&1 &
+    nohup env -i \
+        DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
+        DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+        PATH=/usr/bin:/bin \
+        TMPDIR="$DATA_DIR/tmp" HOME="$DATA_DIR" XDG_CONFIG_HOME="$DATA_DIR" \
+        LD_LIBRARY_PATH="$APP_DIR/usr/lib:$APP_DIR/lib" \
+        "$APP_DIR/ld-musl.so" "$BIN" -nobrowser -data="$DATA_SUB" >>"$LOG" 2>&1 &
     
     # Wait for the program to bind (can take a few seconds on slow TVs)
     i=0
