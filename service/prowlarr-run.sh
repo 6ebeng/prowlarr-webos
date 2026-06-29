@@ -312,7 +312,7 @@ case "${1:-}" in
     start)    spawn_bg _start ;;
     install)  spawn_bg _install ;;
     update)   spawn_bg _update ;;
-    restart)  do_stop; spawn_bg _start ;;
+    restart)  spawn_bg _restart ;;
     stop)     do_stop ;;
     status)   do_status ;;
     logs)     tail -n "${2:-200}" "$LOG" 2>/dev/null ;;
@@ -322,6 +322,7 @@ case "${1:-}" in
     disable-autostart) disable_autostart && echo "disabled" || echo "failed" ;;
     _start)   do_start ;;
     _install) do_install ;;
+    _restart) do_stop; do_start ;;
     _update)  do_stop; do_install && do_start ;;
     *) echo "usage: $0 {install|start|stop|restart|update|status|logs|datadir|latest|enable-autostart|disable-autostart}"; exit 1 ;;
 esac
