@@ -4,6 +4,8 @@ Run [Prowlarr](https://github.com/Prowlarr/Prowlarr) on your LG TV. A webOS home
 
 > Requires a **rooted** webOS TV with the Homebrew Channel. API key defaults to `1`.
 
+![Prowlarr webOS app UI](assets/app_ui.png)
+
 ## Build
 
 ```powershell
