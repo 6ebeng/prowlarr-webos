@@ -11,6 +11,8 @@
 
 	var pollTimer = null;
 	var updateTimer = null;
+	var fastPollTimer = null;
+	var fastPollUntil = 0;
 	var firstUrl = null;
 	var logsVisible = false;
 	var wasRunning = false;
@@ -113,6 +115,24 @@
 		clickLockUntil = Date.now() + 10000; // 10s bridge until a transitional state shows
 		if (message) msg(message);
 		updateButtons(lastStatus);
+		startFastPoll();
+	}
+
+	// Poll rapidly while an action is in flight so the loading feedback ends the
+	// moment the server actually toggles (start/stop), instead of waiting up to a
+	// full POLL_MS for the next regular poll. Stops as soon as the button state
+	// settles (pendingBtnId cleared) or after a safety cap.
+	function startFastPoll() {
+		fastPollUntil = Date.now() + 20000;
+		if (fastPollTimer) return;
+		fastPollTimer = setInterval(function () {
+			if (!pendingBtnId || Date.now() > fastPollUntil) {
+				clearInterval(fastPollTimer);
+				fastPollTimer = null;
+				return;
+			}
+			poll();
+		}, 500);
 	}
 
 	function svc(method, params, ok, fail, overrideService) {
@@ -245,6 +265,10 @@
 		if (pollTimer) {
 			clearInterval(pollTimer);
 			pollTimer = null;
+		}
+		if (fastPollTimer) {
+			clearInterval(fastPollTimer);
+			fastPollTimer = null;
 		}
 	}
 
