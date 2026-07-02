@@ -66,7 +66,14 @@
 	// action buttons must stay locked/greyed until it resolves.
 	function isBusyState(st) {
 		st = st || '';
-		return st === 'downloading' || st === 'extracting' || st === 'fetching-deps' || st === 'starting';
+		return (
+			st === 'downloading' ||
+			st === 'extracting' ||
+			st === 'fetching-deps' ||
+			st === 'starting' ||
+			st === 'stopping' ||
+			st === 'restarting'
+		);
 	}
 
 	// Drive the enabled/disabled + loading state of every action button from the
@@ -160,8 +167,16 @@
 		} else if (state.indexOf('error') === 0) {
 			b.textContent = 'Error';
 			b.className = 'badge error';
-		} else if (state === 'downloading' || state === 'extracting' || state === 'starting') {
-			b.textContent = state.charAt(0).toUpperCase() + state.slice(1) + '…';
+		} else if (isBusyState(state)) {
+			var labels = {
+				downloading: 'Downloading',
+				extracting: 'Extracting',
+				'fetching-deps': 'Fetching deps',
+				starting: 'Starting',
+				stopping: 'Stopping',
+				restarting: 'Restarting',
+			};
+			b.textContent = (labels[state] || 'Working') + '…';
 			b.className = 'badge busy';
 		} else {
 			b.textContent = 'Stopped';
@@ -223,6 +238,10 @@
 		var installing = st === 'downloading' || st === 'extracting' || st === 'fetching-deps' || st === 'starting';
 		if (st.indexOf('error') === 0) {
 			msg('Failed: ' + st + ' — open <b>Logs</b> for details, then press <b>Start</b> to retry.');
+		} else if (st === 'stopping') {
+			msg('Stopping Prowlarr…');
+		} else if (st === 'restarting') {
+			msg('Restarting Prowlarr…');
 		} else if (installing && !s.running) {
 			msg('Installing Prowlarr… <b>' + escapeHtml(stateText) + '</b> — please wait, this can take a minute.');
 		} else if (s.running) {

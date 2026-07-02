@@ -73,6 +73,7 @@ DATA_SUB="$DATA_DIR/data"
 LOG="$DATA_DIR/prowlarr.log"
 PIDFILE="$DATA_DIR/prowlarr.pid"
 STATEFILE="$DATA_DIR/state"
+BGPIDFILE="$DATA_DIR/bg.pid"
 VERFILE="$DATA_DIR/version"
 BIN="$APP_DIR/Prowlarr"
 TGZ="$DATA_DIR/prowlarr.tar.gz"
@@ -394,7 +395,10 @@ do_start() {
     return 1
 }
 
-do_stop() {
+# Kill the running Prowlarr process (no state changes) and wait for the port to
+# be released. Shared by do_stop and _restart so restart can show a distinct
+# "restarting" state instead of momentarily reporting "stopping".
+_kill_proc() {
     if [ -f "$PIDFILE" ]; then
         _p=$(cat "$PIDFILE" 2>/dev/null)
         if [ -n "$_p" ]; then
@@ -419,6 +423,13 @@ do_stop() {
     done
     # Brief grace period for the TCP socket to flush out of TIME_WAIT.
     sleep 1
+}
+
+do_stop() {
+    # Only advertise "stopping" when there is actually something to stop, so a
+    # stop issued against an already-stopped server doesn't flash a busy badge.
+    if is_running || [ -f "$PIDFILE" ]; then set_state "stopping"; fi
+    _kill_proc
     set_state "stopped"
     return 0
 }
@@ -431,6 +442,23 @@ do_status() {
     # state still says "running", report it as stopped so the UI doesn't show a
     # stopped server with a "running" state (which confused the action buttons).
     if [ "$r" = "false" ] && [ "$st" = "running" ]; then st="stopped"; fi
+    # Reconcile stale TRANSITIONAL states. A background install/start/stop can be
+    # killed mid-flight (e.g. the TV drops to standby during a version download),
+    # leaving the state file stuck on "downloading"/"starting"/etc forever. If the
+    # worker process that owns the transition is no longer alive, fall back to a
+    # settled state so the badge stops showing "Downloading…" indefinitely.
+    case "$st" in
+        downloading | extracting | fetching-deps | starting | stopping | restarting)
+            if [ "$r" = "true" ]; then
+                st="running"
+            else
+                _bg=$(cat "$BGPIDFILE" 2>/dev/null)
+                if [ -z "$_bg" ] || ! kill -0 "$_bg" 2>/dev/null; then
+                    st="stopped"
+                fi
+            fi
+            ;;
+    esac
     ver=$(cat "$VERFILE" 2>/dev/null)
     arch=$(detect_arch)
 
@@ -462,11 +490,11 @@ case "${1:-}" in
     select-version) echo "${2:-}" >"$WANTVERFILE" 2>/dev/null; spawn_bg _install_version ;;
     enable-autostart)  enable_autostart && echo "enabled" || echo "failed" ;;
     disable-autostart) disable_autostart && echo "disabled" || echo "failed" ;;
-    _start)   do_start ;;
-    _install) do_install ;;
-    _restart) do_stop; do_start ;;
-    _update)  do_stop; do_install && do_start ;;
-    _install_version) do_stop; do_install "$(cat "$WANTVERFILE" 2>/dev/null)" && do_start ;;
+    _start)   echo $$ >"$BGPIDFILE" 2>/dev/null; do_start ;;
+    _install) echo $$ >"$BGPIDFILE" 2>/dev/null; do_install ;;
+    _restart) echo $$ >"$BGPIDFILE" 2>/dev/null; set_state "restarting"; _kill_proc; do_start ;;
+    _update)  echo $$ >"$BGPIDFILE" 2>/dev/null; do_stop; do_install && do_start ;;
+    _install_version) echo $$ >"$BGPIDFILE" 2>/dev/null; do_stop; do_install "$(cat "$WANTVERFILE" 2>/dev/null)" && do_start ;;
     *) echo "usage: $0 {install|start|stop|restart|update|status|logs|datadir|latest|versions|select-version|enable-autostart|disable-autostart}"; exit 1 ;;
 esac
 
