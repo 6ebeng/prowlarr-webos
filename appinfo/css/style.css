@@ -74,6 +74,8 @@ main { flex: 1; display: flex; flex-direction: column; gap: 28px; min-height: 0;
 .btn.primary { background: #35c5f0; color: #06222c; font-weight: 700; }
 .btn:focus { border-color: #35c5f0; transform: scale(1.05); }
 .btn.primary:focus { border-color: #ffffff; }
+.btn.disabled { opacity: 0.4; color: #8c97a3; background: #22272e; }
+.btn.disabled:focus { border-color: #5c6772; transform: scale(1.02); }
 
 #logwrap { flex: 1; overflow: auto; min-height: 0; padding: 18px; }
 #logs {

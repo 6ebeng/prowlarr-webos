@@ -2,7 +2,7 @@
 
 Run [Prowlarr](https://github.com/Prowlarr/Prowlarr) on your LG TV. A webOS homebrew app (`.ipk`) with a small launcher UI plus a background service that downloads, runs and supervises the official Prowlarr build. Manage it from any device at `http://<tv-ip>:9696`.
 
-> Requires a **rooted** webOS TV with the Homebrew Channel. API key defaults to `1`.
+> Works on both **rooted** (Homebrew Channel) and **non-rooted** (Developer Mode only) webOS TVs. Boot **autostart** requires a rooted TV — on non-rooted TVs the Autostart button is disabled and you launch the app manually after a reboot. API key defaults to `1`.
 
 ![Prowlarr webOS app UI](assets/app_ui.png)
 

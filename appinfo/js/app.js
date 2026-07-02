@@ -15,9 +15,21 @@
 	var logsVisible = false;
 	var wasRunning = false;
 	var autostartOn = true;
+	var autostartAvailable = true;
 
 	function msg(text) {
 		$('msg').innerHTML = text || '';
+	}
+
+	// Toggle a button's greyed-out/disabled visual state. Disabled buttons keep
+	// keyboard focus (so remote navigation still works) but ignore activation.
+	function setBtnDisabled(btn, disabled) {
+		if (!btn) return;
+		if (disabled) {
+			if (btn.className.indexOf('disabled') === -1) btn.className += ' disabled';
+		} else {
+			btn.className = btn.className.replace(/\s*disabled/g, '');
+		}
 	}
 
 	function svc(method, params, ok, fail, overrideService) {
@@ -81,10 +93,22 @@
 		$('arch').textContent = s.arch || '—';
 		$('datadir').textContent = s.dataDir || '—';
 		$('apikey').textContent = s.apiKey || '—';
-		// Autostart status
+		// Autostart status. Persistent autostart is provided by the Homebrew
+		// Channel startup dir, which only exists on a ROOTED TV. Keep the button
+		// enabled on rooted TVs; grey it out on non-rooted (Developer Mode only)
+		// TVs where it cannot persist. Default to enabled if the field is absent
+		// (older service builds) so behaviour is unchanged there.
 		autostartOn = !!s.autostart;
-		$('autostart').textContent = autostartOn ? 'Enabled' : 'Disabled';
-		$('btnAutostart').textContent = 'Autostart: ' + (autostartOn ? 'On' : 'Off');
+		autostartAvailable = s.canAutostart !== false;
+		if (autostartAvailable) {
+			$('autostart').textContent = autostartOn ? 'Enabled' : 'Disabled';
+			$('btnAutostart').textContent = 'Autostart: ' + (autostartOn ? 'On' : 'Off');
+			setBtnDisabled($('btnAutostart'), false);
+		} else {
+			$('autostart').textContent = 'Unavailable (needs rooted TV)';
+			$('btnAutostart').textContent = 'Autostart: N/A';
+			setBtnDisabled($('btnAutostart'), true);
+		}
 		var urls = s.accessUrls || [];
 		firstUrl = urls.length ? urls[0] : null;
 		$('urls').textContent = urls.length ? urls.join('    ') : 'http://<tv-ip>:' + (s.port || 9696);
@@ -239,6 +263,10 @@
 			setTimeout(checkUpdate, 60000);
 		};
 		$('btnAutostart').onclick = function () {
+			if (!autostartAvailable) {
+				msg('Autostart needs a rooted TV with the Homebrew Channel. On a non-rooted TV, open the app manually after each reboot.');
+				return;
+			}
 			if (autostartOn) {
 				msg('Disabling autostart…');
 				svc('disableAutostart', {}, poll);

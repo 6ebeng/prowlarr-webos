@@ -68,6 +68,16 @@ set_state() { echo "$1" >"$STATEFILE" 2>/dev/null; }
 
 autostart_enabled() { [ -f "$AUTOSTART_DST" ]; }
 
+# Persistent autostart is provided by the Homebrew Channel startup-script dir,
+# which only exists and is writable on a ROOTED TV. On a non-rooted (Developer
+# Mode only) TV the service runs unprivileged and cannot write there. Probe it
+# so the UI can enable the Autostart button on rooted TVs and disable it
+# (instead of silently failing) on non-rooted ones.
+can_autostart() {
+    _d=$(dirname "$AUTOSTART_DST")
+    { [ -d "$_d" ] || mkdir -p "$_d" 2>/dev/null; } && [ -w "$_d" ]
+}
+
 enable_autostart() {
     mkdir -p "$(dirname "$AUTOSTART_DST")" 2>/dev/null
     if [ -f "$AUTOSTART_SRC" ]; then
@@ -341,8 +351,9 @@ do_status() {
     [ -z "$tot" ] && tot=0
 
     if autostart_enabled; then as=true; else as=false; fi
-    printf '{"running":%s,"installed":%s,"state":"%s","version":"%s","arch":"%s","port":%s,"downloadedBytes":%s,"totalBytes":%s,"dataDir":"%s","autostart":%s}\n' \
-        "$r" "$ins" "$st" "$ver" "$arch" "$PORT" "$dlb" "$tot" "$DATA_DIR" "$as"
+    if can_autostart; then ca=true; else ca=false; fi
+    printf '{"running":%s,"installed":%s,"state":"%s","version":"%s","arch":"%s","port":%s,"downloadedBytes":%s,"totalBytes":%s,"dataDir":"%s","autostart":%s,"canAutostart":%s}\n' \
+        "$r" "$ins" "$st" "$ver" "$arch" "$PORT" "$dlb" "$tot" "$DATA_DIR" "$as" "$ca"
 }
 
 case "${1:-}" in
