@@ -42,7 +42,3 @@ scripts/   build / deploy (PowerShell)
 ## Credits
 
 [Prowlarr](https://github.com/Prowlarr/Prowlarr) (GPL-3.0, fetched at runtime). Wrapper: MIT. Coded by **Tishko Rasoul** — [github.com/6ebeng/prowlarr-webos](https://github.com/6ebeng/prowlarr-webos)
-
-
-
-

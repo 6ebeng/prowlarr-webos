@@ -66,14 +66,7 @@
 	// action buttons must stay locked/greyed until it resolves.
 	function isBusyState(st) {
 		st = st || '';
-		return (
-			st === 'downloading' ||
-			st === 'extracting' ||
-			st === 'fetching-deps' ||
-			st === 'starting' ||
-			st === 'stopping' ||
-			st === 'restarting'
-		);
+		return st === 'downloading' || st === 'extracting' || st === 'fetching-deps' || st === 'starting' || st === 'stopping' || st === 'restarting';
 	}
 
 	// Drive the enabled/disabled + loading state of every action button from the
@@ -553,8 +546,8 @@
 				{
 					onFailure: function () {
 						window.location.href = firstUrl;
-					}
-				}
+					},
+				},
 			);
 		};
 	}
@@ -634,4 +627,3 @@
 		xhr.send();
 	});
 })();
-
