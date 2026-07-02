@@ -22,11 +22,14 @@ UA="prowlarr-webos"
 AUTOSTART_SRC="$SCRIPT_DIR/prowlarr-autostart"
 AUTOSTART_DST="/var/lib/webosbrew/init.d/prowlarr"
 
-# Locate the app's icon so toast notifications can show the Prowlarr logo. The
-# service lives at .../usr/palm/services/com.prowlarr.app.service and the app
-# icon at .../usr/palm/applications/com.prowlarr.app/icon.png (dev or cryptofs).
+# Locate the app's icon so toast notifications can show the Prowlarr logo. Prefer
+# the white-background notification tile (icon-notify.png) so the logo stands out
+# on the dark webOS toast; fall back to the standard app icon.
 APP_ICON=""
 for _ic in \
+    "$SCRIPT_DIR/../../applications/com.prowlarr.app/icon-notify.png" \
+    /media/developer/apps/usr/palm/applications/com.prowlarr.app/icon-notify.png \
+    /media/cryptofs/apps/usr/palm/applications/com.prowlarr.app/icon-notify.png \
     "$SCRIPT_DIR/../../applications/com.prowlarr.app/icon.png" \
     /media/developer/apps/usr/palm/applications/com.prowlarr.app/icon.png \
     /media/cryptofs/apps/usr/palm/applications/com.prowlarr.app/icon.png; do
@@ -110,8 +113,14 @@ can_autostart() {
     if { [ -d "$_d" ] || mkdir -p "$_d" 2>/dev/null; } && [ -w "$_d" ]; then
         return 0
     fi
-    # Rooted TV: the Homebrew Channel directory tree exists (root-owned). The
-    # autostart script is written with elevated privileges, so allow it.
+    # The status query runs in the jailed (non-root) service context, which
+    # cannot see /var/lib/webosbrew - so on a rooted TV where the service has not
+    # yet been elevated the button would wrongly grey out. The Homebrew Channel
+    # service sits alongside ours under the SAME apps root and IS visible from the
+    # jail, so treat its presence as the rooted-TV signal (autostart persists
+    # once the app runs elevated via rootRequired).
+    [ -d "$SCRIPT_DIR/../org.webosbrew.hbchannel.service" ] && return 0
+    [ -d "$SCRIPT_DIR/../../applications/org.webosbrew.hbchannel" ] && return 0
     [ -d /var/lib/webosbrew/init.d ] || [ -d /var/lib/webosbrew ]
 }
 
